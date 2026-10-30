@@ -1,0 +1,49 @@
+[package]
+name = "sw-panel-loader"
+version = "0.1.0"
+description = "TURZX 8.8インチ画面に画像を入れて、電源オンで表示させるアプリ"
+authors = ["SEVENTHWELL"]
+license = "GPL-3.0-or-later"
+edition = "2021"
+rust-version = "1.85"
+
+[lib]
+name = "sw_panel_loader_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2.7.4", features = [] }
+
+[dependencies]
+tauri = { version = "2.12.5", features = [] }
+tauri-plugin-dialog = "2.8.4"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+anyhow = "1.0.104"
+thiserror = "2.0.21"
+chrono = "0.4.45"
+base64 = "0.23.1"
+rusb = { version = "0.9.4", features = ["vendored"] }
+des = "0.9.0"
+cbc = "0.2.1"
+image = { version = "0.25.10", default-features = false, features = ["png", "jpeg", "bmp", "webp", "gif", "rayon"] }
+fatfs = "0.3.6"
+
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.62.2", features = [
+  "Win32_Foundation",
+  "Win32_Storage_FileSystem",
+  "Win32_System_IO",
+  "Win32_System_Ioctl",
+  "Win32_System_Threading",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_Security",
+] }
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

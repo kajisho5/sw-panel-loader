@@ -1,0 +1,72 @@
+name: build
+
+# main に反映されたら Windows でビルドし、
+# まだリリースされていない版番号ならリリースを自動で作る
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: 部品を入れる
+        run: npm ci
+
+      - name: テスト（Rust）
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      - name: ビルド
+        run: npx tauri build
+
+      - name: 配布ファイルを集める
+        id: files
+        shell: pwsh
+        run: |
+          $ver = (Get-Content src-tauri/tauri.conf.json | ConvertFrom-Json).version
+          New-Item -ItemType Directory -Force out | Out-Null
+          Copy-Item src-tauri/target/release/bundle/nsis/*.exe out/
+          Copy-Item src-tauri/target/release/bundle/msi/*.msi out/
+          Copy-Item src-tauri/target/release/sw-panel-loader.exe "out/SW-PANEL-LOADER_${ver}_portable.exe"
+          Get-ChildItem out
+          "version=$ver" >> $env:GITHUB_OUTPUT
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sw-panel-loader-${{ steps.files.outputs.version }}
+          path: out/*
+
+      - name: リリース（未リリースの版番号のときだけ）
+        if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v${{ steps.files.outputs.version }}"
+          gh release view $tag 2>$null
+          if ($LASTEXITCODE -eq 0) { Write-Host "$tag はリリース済みなので何もしません"; exit 0 }
+          $notes = if (Test-Path "docs/release-notes/$tag.md") { "docs/release-notes/$tag.md" } else { $null }
+          if ($notes) {
+            gh release create $tag out/* --title "SW PANEL LOADER $tag" --notes-file $notes --target $env:GITHUB_SHA
+          } else {
+            gh release create $tag out/* --title "SW PANEL LOADER $tag" --generate-notes --target $env:GITHUB_SHA
+          }

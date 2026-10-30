@@ -1,0 +1,48 @@
+@import "tailwindcss";
+
+/* SVGデザインの色・文字をそのまま使う */
+@theme {
+  --color-win: #171c1b;
+  --color-raise: #1d2322;
+  --color-sunk: #121716;
+  --color-deep: #141917;
+  --color-line: #2b3331;
+  --color-line2: #323a38;
+  --color-line3: #3a4240;
+  --color-btn: #262e2c;
+  --color-ink: #e7ebe9;
+  --color-ink2: #c9d1cd;
+  --color-mute: #9aa49f;
+  --color-dim: #7f8b86;
+  --color-faint: #5f6a66;
+  --color-amber: #e59a45;
+  --color-amber-ink: #171c1b;
+  --color-ok-bg: #16261d;
+  --color-ok-line: #2f5a40;
+  --color-ok-ink: #bfe3cd;
+  --color-ok-sub: #9fcdb0;
+  --color-ok-dot: #6fc193;
+  --color-bad-bg: #3a1f1a;
+  --color-bad-line: #a33a2a;
+  --color-bad-ink: #ffd9d1;
+  --font-sans: "Noto Sans JP Variable", "Yu Gothic UI", "Meiryo UI", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, "Consolas", monospace;
+}
+
+html, body, #root { height: 100%; }
+body {
+  margin: 0;
+  background: var(--color-win);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  font-size: 13px;
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+button { cursor: pointer; }
+button:disabled { cursor: not-allowed; }
+:focus-visible { outline: 2px solid var(--color-amber); outline-offset: 2px; }
+input[type="range"] { accent-color: var(--color-amber); }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.selectable { user-select: text; }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
