@@ -127,8 +127,9 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
     };
     emit("prepare", "画像を整えています", 0, 1);
     let img = imaging::render_job(job)?;
-    let png = imaging::encode_panel_png(&img)?;
-    logln!("画像 {} バイト（RGBA PNG）", png.len());
+    // 画面はJPEGが本命（表示の命令名が PlayLocalJpg）。PNGは起動時に固まることがあった
+    let png = imaging::encode_jpeg_under(&img, 900 * 1024)?;
+    logln!("画像 {} バイト（JPEG）", png.len());
 
     emit("prepare", "画面に接続しています", 0, 1);
     let panel = usb::Panel::open()?;
@@ -142,7 +143,7 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
         .unwrap_or_default();
     let name = protocol::safe_device_name(
         &format!("{}_{}", stem, chrono::Local::now().format("%m%d%H%M%S")),
-        "png",
+        "jpg",
     );
     let device_path = format!("{dir}{name}");
 
