@@ -35,6 +35,8 @@ struct DeviceStatus {
     other_model: Option<String>,
     storage: Option<Storage>,
     error: Option<String>,
+    /// ほかのソフトが画面を使っていて開けない
+    busy: bool,
 }
 
 #[tauri::command]
@@ -48,14 +50,17 @@ async fn device_status() -> CmdResult<DeviceStatus> {
     tauri::async_runtime::spawn_blocking(|| {
         let p = usb::presence();
         if !p.connected {
-            return DeviceStatus { connected: false, other_model: p.other_model, storage: None, error: None };
+            return DeviceStatus { connected: false, other_model: p.other_model, storage: None, error: None, busy: false };
         }
         match usb::Panel::open().and_then(|panel| {
             panel.sync()?;
             panel.storage()
         }) {
-            Ok(s) => DeviceStatus { connected: true, other_model: None, storage: Some(s), error: None },
-            Err(e) => DeviceStatus { connected: true, other_model: None, storage: None, error: Some(err(e)) },
+            Ok(s) => DeviceStatus { connected: true, other_model: None, storage: Some(s), error: None, busy: false },
+            Err(e) => {
+                let busy = matches!(e, usb::UsbError::Busy(_));
+                DeviceStatus { connected: true, other_model: None, storage: None, error: Some(err(e)), busy }
+            }
         }
     })
     .await

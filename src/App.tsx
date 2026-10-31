@@ -23,6 +23,7 @@ export default function App() {
   const [status, setStatus] = useState<DeviceStatus | null>(null);
   const loaded = useRef(false);
   const lastConnected = useRef(false);
+  const hadError = useRef(false);
 
   useEffect(() => {
     api
@@ -42,7 +43,9 @@ export default function App() {
 
   const refreshStatus = useCallback(async () => {
     try {
-      setStatus(await api.status());
+      const s = await api.status();
+      hadError.current = !!s.error;
+      setStatus(s);
     } catch {
       /* 何もしない */
     }
@@ -55,12 +58,13 @@ export default function App() {
       try {
         const p = await api.presence();
         if (!alive) return;
-        if (p.connected && !lastConnected.current) {
+        if (p.connected && (!lastConnected.current || hadError.current)) {
+          // つながった瞬間と、応答がない間は読み直す
           lastConnected.current = true;
           await refreshStatus();
         } else if (!p.connected) {
           lastConnected.current = false;
-          setStatus({ ...p, storage: null, error: null });
+          setStatus({ ...p, storage: null, error: null, busy: false });
         }
       } catch {
         /* 何もしない */
@@ -126,7 +130,7 @@ function ConnectionChip({ status }: { status: DeviceStatus | null }) {
   let text = "画面が見つかりません：USBを挿し直してください";
   if (status?.connected && status.error) {
     tone = "warn";
-    text = "公式のTURZXソフトを閉じてください";
+    text = status.busy ? "公式のTURZXソフトを閉じてください" : "画面が応答しません：USBを挿し直してください";
   } else if (status?.connected) {
     tone = "ok";
     text = "接続中　8.8インチ";

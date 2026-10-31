@@ -38,6 +38,7 @@ export interface Presence {
 export interface DeviceStatus extends Presence {
   storage: Storage | null;
   error: string | null;
+  busy?: boolean;
 }
 
 export interface SourceInfo {
