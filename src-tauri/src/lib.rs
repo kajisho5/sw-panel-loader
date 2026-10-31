@@ -141,28 +141,29 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
         .file_stem()
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_default();
-    let name = protocol::safe_device_name(
-        &format!("{}_{}", stem, chrono::Local::now().format("%m%d%H%M%S")),
-        "jpg",
-    );
+    let name = protocol::device_name_with_stamp(&stem, &chrono::Local::now().format("%m%d%H%M%S").to_string(), "jpg");
     let device_path = format!("{dir}{name}");
+
+    // 先に新しい画像を入れてから古いものを消す（途中で失敗しても画像が空にならないように）
+    panel.upload(&device_path, &png, |s, t| emit("upload", "画像を送っています", s, t))?;
 
     let mut removed = Vec::new();
     if o.remove_others {
         emit("prepare", "前の画像を片付けています", 0, 1);
         if let Ok(names) = panel.list_dir(dir.trim_end_matches('/')) {
             for n in names {
+                if n == name {
+                    continue;
+                }
                 let lower = n.to_ascii_lowercase();
-                if [".png", ".jpg", ".jpeg", ".bmp"].iter().any(|e| lower.ends_with(e)) {
-                    if panel.delete(&format!("{dir}{n}")).is_ok() {
-                        removed.push(n);
-                    }
+                if [".png", ".jpg", ".jpeg", ".bmp"].iter().any(|e| lower.ends_with(e))
+                    && panel.delete(&format!("{dir}{n}")).is_ok()
+                {
+                    removed.push(n);
                 }
             }
         }
     }
-
-    panel.upload(&device_path, &png, |s, t| emit("upload", "画像を送っています", s, t))?;
 
     match o.boot_logo {
         BootLogo::Keep => {}

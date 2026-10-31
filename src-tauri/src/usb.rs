@@ -21,11 +21,16 @@ pub enum UsbError {
     Io(String),
 }
 
+/// 画面を使う処理は1つずつ（書き込み中に状態確認が割り込まないように）
+static USB_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
 pub struct Panel {
+    // 先に宣言したものから先に片付くので、handle を閉じてから鍵を外す
     handle: rusb::DeviceHandle<GlobalContext>,
     ep_out: u8,
     ep_in: u8,
     iface: u8,
+    _guard: std::sync::MutexGuard<'static, ()>,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -57,6 +62,7 @@ pub fn presence() -> Presence {
 
 impl Panel {
     pub fn open() -> Result<Panel, UsbError> {
+        let guard = USB_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let list = rusb::devices().map_err(|e| UsbError::Io(e.to_string()))?;
         let dev = list
             .iter()
@@ -98,7 +104,7 @@ impl Panel {
         }
         handle.claim_interface(iface).map_err(|e| UsbError::Busy(e.to_string()))?;
         logln!("接続しました（口 {iface}, 出 {ep_out:#04x}, 入 {ep_in:#04x}）");
-        Ok(Panel { handle, ep_out, ep_in, iface })
+        Ok(Panel { handle, ep_out, ep_in, iface, _guard: guard })
     }
 
     fn flush_in(&self) {
@@ -153,16 +159,19 @@ impl Panel {
         let pkt = protocol::with_path(cmd::LIST_DIR, dir).map_err(|e| UsbError::Io(e.to_string()))?;
         let mut all = Vec::new();
         // 公式ソフトと同じく、最大20回に分けて受け取る
+        let mut prev: Option<Vec<u8>> = None;
         for i in 0..20 {
             let r = self.exchange(&pkt, false)?;
             if i == 0 {
                 logln!("一覧 {dir} → {}", crate::log::hex_head(&r, 24));
             }
-            let empty = r.iter().all(|&b| b == 0);
-            all.extend_from_slice(&r);
-            if empty {
+            // 空、または前回と同じ中身（＝続きがない）なら終わり
+            let same = prev.as_ref().map(|p| p.get(8..) == r.get(8..)).unwrap_or(false);
+            if r.iter().all(|&b| b == 0) || same {
                 break;
             }
+            all.extend_from_slice(&r);
+            prev = Some(r);
         }
         let names = protocol::parse_dir_listing(&all);
         logln!("一覧 {dir}：{} 件 {:?}", names.len(), names);

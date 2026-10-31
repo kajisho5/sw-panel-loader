@@ -138,10 +138,13 @@ pub fn encode_panel_png(img: &RgbImage) -> anyhow::Result<Vec<u8>> {
     Ok(out.into_inner())
 }
 
+/// 公式ソフト（Windows標準の書き出し）と同じ、ふつうのJPEG（色は4:2:0）にする。
+/// 組み込み機器の読み込みは4:2:0しか想定していないことが多いため
 pub fn encode_jpeg(img: &RgbImage, quality: u8) -> anyhow::Result<Vec<u8>> {
     let mut out = Vec::new();
-    let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
-    enc.encode_image(img)?;
+    let mut enc = jpeg_encoder::Encoder::new(&mut out, quality);
+    enc.set_sampling_factor(jpeg_encoder::SamplingFactor::F_2_2);
+    enc.encode(img.as_raw(), img.width() as u16, img.height() as u16, jpeg_encoder::ColorType::Rgb)?;
     Ok(out)
 }
 
@@ -230,6 +233,17 @@ mod tests {
         assert_eq!(c.get_pixel(475, 960), &Rgb([0, 0, 0]));
         assert_eq!(c.get_pixel(465, 960), &Rgb([255, 255, 255]));
         assert_eq!(c.get_pixel(0, 960), &Rgb([255, 255, 255]));
+    }
+
+    #[test]
+    fn jpeg_is_baseline_420() {
+        let j = encode_jpeg(&black_panel(), 90).unwrap();
+        // SOF0（ふつうのJPEG）で、1つ目の色成分の間引きが 2x2
+        let sof = j.windows(2).position(|w| w == [0xFF, 0xC0]).expect("SOF0がありません");
+        let comps = &j[sof + 10..];
+        // comps[0] は成分番号（0か1）、comps[1] が間引き
+        assert_eq!(comps[1], 0x22, "{:02x?}", &comps[..9]);
+        assert!(image::load_from_memory(&j).is_ok());
     }
 
     #[test]

@@ -205,6 +205,15 @@ pub fn parse_dir_listing(raw: &[u8]) -> Vec<String> {
 }
 
 /// 画面の中で使うファイル名にする（英数字と - _ . だけ）
+/// 元の名前（短く切る）＋ 日時、の形で画面側の名前を作る。日時は必ず残す
+pub fn device_name_with_stamp(stem: &str, stamp: &str, ext: &str) -> String {
+    let base = safe_device_name(stem, "x");
+    let base = base.trim_end_matches(".x");
+    let base: String = base.chars().take(24).collect();
+    let base = if base == "panel" { "panel".to_string() } else { base };
+    format!("{base}_{stamp}.{ext}")
+}
+
 pub fn safe_device_name(stem: &str, ext: &str) -> String {
     let mut s: String = stem
         .chars()
@@ -265,6 +274,13 @@ mod tests {
         assert_eq!(safe_device_name("受付 サンプル 01", "png"), "01.png");
         assert_eq!(safe_device_name("次座長席", "png"), "panel.png");
         assert_eq!(safe_device_name("hall-b_sign", "png"), "hall-b_sign.png");
+    }
+
+    #[test]
+    fn stamp_never_cut() {
+        let n = device_name_with_stamp(&"a".repeat(80), "1031093223", "jpg");
+        assert!(n.ends_with("_1031093223.jpg"), "{n}");
+        assert_eq!(device_name_with_stamp("次座長席", "1031093223", "jpg"), "panel_1031093223.jpg");
     }
 
     #[test]
