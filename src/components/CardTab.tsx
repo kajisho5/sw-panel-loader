@@ -207,6 +207,8 @@ export function CardTab({ status, onRefresh }: { status: DeviceStatus | null; on
         </section>
       </div>
 
+      <ResetBox connected={!!status?.connected} />
+
       {/* 記録 */}
       <section className="mt-auto">
         <button
@@ -237,5 +239,39 @@ export function CardTab({ status, onRefresh }: { status: DeviceStatus | null; on
         )}
       </section>
     </div>
+  );
+}
+
+function ResetBox({ connected }: { connected: boolean }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function run(blackLogo: boolean) {
+    setBusy(true);
+    setMsg(null);
+    try {
+      await api.reset(blackLogo);
+      setMsg("戻しました。画面のUSBを挿し直して確認してください");
+    } catch (e) {
+      setMsg(errText(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <section className="flex flex-col gap-2">
+      <h2 className="m-0 text-[14px] font-bold">画面の設定を元に戻す</h2>
+      <p className="m-0 text-[11.5px] text-dim">
+        電源を入れたときの動きを公式ソフトの標準に戻します。起動ロゴがおかしいときは黒に入れ替えます
+      </p>
+      <div className="flex gap-3">
+        <GhostButton disabled={!connected || busy} onClick={() => run(false)}>
+          起動時の設定だけ戻す
+        </GhostButton>
+        <GhostButton disabled={!connected || busy} onClick={() => run(true)}>
+          設定を戻して起動ロゴを黒にする
+        </GhostButton>
+      </div>
+      {msg && <p className="selectable m-0 text-[12px] text-ink2">{msg}</p>}
+    </section>
   );
 }

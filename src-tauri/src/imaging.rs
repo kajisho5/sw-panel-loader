@@ -115,11 +115,32 @@ pub fn encode_png(img: &RgbImage) -> anyhow::Result<Vec<u8>> {
     Ok(out.into_inner())
 }
 
+/// 画面に送る用のPNG（公開ソフトと同じ 8bit RGBA。透明度は不透明で埋める）
+pub fn encode_panel_png(img: &RgbImage) -> anyhow::Result<Vec<u8>> {
+    let rgba = DynamicImage::ImageRgb8(img.clone()).to_rgba8();
+    let mut out = Cursor::new(Vec::new());
+    rgba.write_to(&mut out, image::ImageFormat::Png)?;
+    Ok(out.into_inner())
+}
+
 pub fn encode_jpeg(img: &RgbImage, quality: u8) -> anyhow::Result<Vec<u8>> {
     let mut out = Vec::new();
     let mut enc = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut out, quality);
     enc.encode_image(img)?;
     Ok(out)
+}
+
+/// 公式ソフトと同じく、指定の大きさ以下になるまで画質を下げてJPEGにする
+pub fn encode_jpeg_under(img: &RgbImage, max_bytes: usize) -> anyhow::Result<Vec<u8>> {
+    let mut q = 95u8;
+    loop {
+        let j = encode_jpeg(img, q)?;
+        if j.len() <= max_bytes || q <= 40 {
+            anyhow::ensure!(j.len() <= max_bytes, "起動ロゴを{}KB以下にできませんでした", max_bytes / 1024);
+            return Ok(j);
+        }
+        q -= 5;
+    }
 }
 
 /// 起動ロゴ用：真っ黒
@@ -175,6 +196,15 @@ mod tests {
         // 横長 1920×480 を90°回すとぴったり
         let c = compose(solid(1920, 480), 90, Fit::Contain, Rgb([0, 0, 0]));
         assert_eq!(c.get_pixel(0, 0), &Rgb([255, 255, 255]));
+    }
+
+    #[test]
+    fn panel_png_is_rgba() {
+        let png = encode_panel_png(&black_panel()).unwrap();
+        // IHDR: 幅480・高さ1920・8bit・カラータイプ6(RGBA)
+        assert_eq!(&png[16..24], &[0, 0, 1, 0xe0, 0, 0, 7, 0x80]);
+        assert_eq!(png[24], 8);
+        assert_eq!(png[25], 6);
     }
 
     #[test]

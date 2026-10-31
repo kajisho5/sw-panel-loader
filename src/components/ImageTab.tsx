@@ -126,7 +126,7 @@ export function ImageTab({
         brightness: prefs.brightness,
         removeOthers: prefs.removeOthers,
         bootLogo: prefs.bootLogo,
-        restart: true,
+        restart: false,
       });
       setPhase({ kind: "done", result });
     } catch (e) {
@@ -322,9 +322,11 @@ export function ImageTab({
             <>
               {phase.kind === "done" && (
                 <div className="rounded-lg border border-ok-line bg-ok-bg px-[18px] py-3">
-                  <div className="text-[13px] font-bold text-ok-ink">完了しました</div>
+                  <div className="text-[13px] font-bold text-ok-ink">
+                    {phase.result.playedNow ? "完了しました" : "書き込みました（すぐには表示されませんでした）"}
+                  </div>
                   <div className="text-[11.5px] text-ok-sub">
-                    画面が再起動します。USBを抜いて電源だけで表示されるか確認してください
+                    画面に表示されました。USBを抜いて、電源だけでも表示されるか確認してください
                     {phase.result.removed.length > 0 && `（前の画像 ${phase.result.removed.length} 枚を消しました）`}
                     {phase.result.usedInternal && "。カードが見つからなかったので画面の内蔵メモリに入れました"}
                   </div>
@@ -341,7 +343,7 @@ export function ImageTab({
                 disabled={!path || !connected}
                 className="h-11 rounded-lg bg-amber text-[15px] font-bold text-amber-ink disabled:bg-line3 disabled:text-dim"
               >
-                画面に書き込んで再起動
+                画面に書き込む
               </button>
               {!connected && (
                 <p className="m-0 text-[11.5px] text-dim">画面をUSBでつなぐと押せるようになります</p>
@@ -357,7 +359,6 @@ export function ImageTab({
 const STAGES: { key: Progress["stage"]; label: string }[] = [
   { key: "upload", label: "送信" },
   { key: "save", label: "設定を保存" },
-  { key: "restart", label: "再起動" },
 ];
 
 function WritingBox({ progress }: { progress: Progress | null }) {

@@ -122,7 +122,8 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
     };
     emit("prepare", "画像を整えています", 0, 1);
     let img = imaging::render_job(job)?;
-    let png = imaging::encode_png(&img)?;
+    let png = imaging::encode_panel_png(&img)?;
+    logln!("画像 {} バイト（RGBA PNG）", png.len());
 
     emit("prepare", "画面に接続しています", 0, 1);
     let panel = usb::Panel::open()?;
@@ -162,7 +163,8 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
         BootLogo::Same | BootLogo::Black => {
             emit("upload", "起動ロゴを入れ替えています", 0, 1);
             let logo = if o.boot_logo == BootLogo::Same { img.clone() } else { imaging::black_panel() };
-            let jpg = imaging::encode_jpeg(&logo, 90)?;
+            let jpg = imaging::encode_jpeg_under(&logo, 300 * 1024)?;
+            logln!("起動ロゴ {} バイト", jpg.len());
             panel.upload(dpath::BOOT_LOGO, &jpg, |_, _| {})?;
         }
     }
@@ -186,6 +188,31 @@ fn write_panel_inner(app: &tauri::AppHandle, job: &Job, o: &WriteOptions) -> any
     emit("done", "完了しました", 1, 1);
     logln!("完了 {device_path}");
     Ok(WriteResult { device_path, played_now, removed, used_internal: !has_card })
+}
+
+/// 起動時の設定を初期（公式ソフトの標準）に戻す。必要なら起動ロゴを黒にする
+#[tauri::command]
+async fn reset_device(black_logo: bool) -> CmdResult<()> {
+    tauri::async_runtime::spawn_blocking(move || -> anyhow::Result<()> {
+        logln!("初期に戻す（起動ロゴを黒に: {black_logo}）");
+        let p = usb::Panel::open()?;
+        p.sync()?;
+        if black_logo {
+            let jpg = imaging::encode_jpeg_under(&imaging::black_panel(), 300 * 1024)?;
+            p.upload(dpath::BOOT_LOGO, &jpg, |_, _| {})?;
+        }
+        p.save_settings(&DeviceSettings {
+            brightness: 75,
+            start_mode: StartMode::Default,
+            rotation: 0,
+            sleep_delay: 0,
+            offline: 0,
+        })?;
+        Ok(())
+    })
+    .await
+    .map_err(err)?
+    .map_err(err)
 }
 
 #[tauri::command]
@@ -299,6 +326,12 @@ pub fn run() {
     logln!("SW PANEL LOADER {} 起動", env!("CARGO_PKG_VERSION"));
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .setup(|app| {
+            let dir = config_dir(app.handle());
+            log::init_file(dir.join("記録.log"));
+            logln!("記録の保存先 {}", dir.display());
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             device_presence,
             device_status,
@@ -306,6 +339,7 @@ pub fn run() {
             preview,
             write_panel,
             restart_device,
+            reset_device,
             load_prefs,
             save_prefs,
             get_log,

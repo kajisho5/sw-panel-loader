@@ -11,7 +11,7 @@ const DEFAULT_PREFS: Prefs = {
   noSleep: true,
   brightness: 75,
   removeOthers: true,
-  bootLogo: "same",
+  bootLogo: "keep",
   lastDir: null,
 };
 

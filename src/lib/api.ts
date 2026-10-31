@@ -21,6 +21,7 @@ export interface Prefs {
   removeOthers: boolean;
   bootLogo: BootLogo;
   lastDir: string | null;
+  version?: number;
 }
 
 export interface Storage {
@@ -85,6 +86,7 @@ export const api = {
   preview: (job: Job) => invoke<string>("preview", { job }),
   write: (job: Job, opts: WriteOptions) => invoke<WriteResult>("write_panel", { job, opts }),
   restart: () => invoke<void>("restart_device"),
+  reset: (blackLogo: boolean) => invoke<void>("reset_device", { blackLogo }),
   loadPrefs: () => invoke<Prefs>("load_prefs"),
   savePrefs: (prefs: Prefs) => invoke<void>("save_prefs", { prefs }),
   log: () => invoke<string[]>("get_log"),
