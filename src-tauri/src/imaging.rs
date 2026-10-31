@@ -27,6 +27,9 @@ pub struct Job {
     pub fit: Fit,
     /// "#rrggbb"
     pub pad_color: String,
+    /// 余白（画面のピクセル）上・右・下・左。枠に隠れる端を避けるため
+    #[serde(default)]
+    pub margin: [u32; 4],
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -87,9 +90,17 @@ fn rotate(img: DynamicImage, deg: u16) -> DynamicImage {
 
 /// 画面ぴったりの画像を作る
 pub fn compose(img: DynamicImage, rotation: u16, fit: Fit, pad: Rgb<u8>) -> RgbImage {
+    compose_with_margin(img, rotation, fit, pad, [0; 4])
+}
+
+/// 余白つき。[上, 右, 下, 左]
+pub fn compose_with_margin(img: DynamicImage, rotation: u16, fit: Fit, pad: Rgb<u8>, margin: [u32; 4]) -> RgbImage {
+    let [mt, mr, mb, ml] = margin.map(|m| m.min(200));
+    let inner_w = PANEL_W.saturating_sub(ml + mr).max(16);
+    let inner_h = PANEL_H.saturating_sub(mt + mb).max(16);
     let img = rotate(img, rotation).to_rgb8();
     let (sw, sh) = (img.width().max(1) as f64, img.height().max(1) as f64);
-    let (pw, ph) = (PANEL_W as f64, PANEL_H as f64);
+    let (pw, ph) = (inner_w as f64, inner_h as f64);
     let scale = match fit {
         Fit::Contain => (pw / sw).min(ph / sh),
         Fit::Cover => (pw / sw).max(ph / sh),
@@ -97,16 +108,20 @@ pub fn compose(img: DynamicImage, rotation: u16, fit: Fit, pad: Rgb<u8>) -> RgbI
     let nw = ((sw * scale).round() as u32).max(1);
     let nh = ((sh * scale).round() as u32).max(1);
     let resized = image::imageops::resize(&img, nw, nh, FilterType::Lanczos3);
+    // 内側の枠からはみ出した分（切り抜き）を落とす
+    let cx = (nw.saturating_sub(inner_w)) / 2;
+    let cy = (nh.saturating_sub(inner_h)) / 2;
+    let cropped = image::imageops::crop_imm(&resized, cx, cy, nw.min(inner_w), nh.min(inner_h)).to_image();
     let mut canvas = RgbImage::from_pixel(PANEL_W, PANEL_H, pad);
-    let x = (PANEL_W as i64 - nw as i64) / 2;
-    let y = (PANEL_H as i64 - nh as i64) / 2;
-    image::imageops::overlay(&mut canvas, &resized, x, y);
+    let x = ml as i64 + (inner_w as i64 - cropped.width() as i64) / 2;
+    let y = mt as i64 + (inner_h as i64 - cropped.height() as i64) / 2;
+    image::imageops::overlay(&mut canvas, &cropped, x, y);
     canvas
 }
 
 pub fn render_job(job: &Job) -> anyhow::Result<RgbImage> {
     let img = load(Path::new(&job.source_path))?;
-    Ok(compose(img, job.rotation, job.fit, parse_color(&job.pad_color)))
+    Ok(compose_with_margin(img, job.rotation, job.fit, parse_color(&job.pad_color), job.margin))
 }
 
 pub fn encode_png(img: &RgbImage) -> anyhow::Result<Vec<u8>> {
@@ -205,6 +220,16 @@ mod tests {
         assert_eq!(&png[16..24], &[0, 0, 1, 0xe0, 0, 0, 7, 0x80]);
         assert_eq!(png[24], 8);
         assert_eq!(png[25], 6);
+    }
+
+    #[test]
+    fn margin_keeps_edges_clear() {
+        // 右に10px余白：右端10列は余白色、内側は画像
+        let c = compose_with_margin(solid(480, 1920), 0, Fit::Cover, Rgb([0, 0, 0]), [0, 10, 0, 0]);
+        assert_eq!((c.width(), c.height()), (480, 1920));
+        assert_eq!(c.get_pixel(475, 960), &Rgb([0, 0, 0]));
+        assert_eq!(c.get_pixel(465, 960), &Rgb([255, 255, 255]));
+        assert_eq!(c.get_pixel(0, 960), &Rgb([255, 255, 255]));
     }
 
     #[test]

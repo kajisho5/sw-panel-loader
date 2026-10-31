@@ -98,7 +98,7 @@ export function ImageTab({
 
   // プレビュー（向き・合わせ方・余白色が変わるたび）
   const job: Job | null = path
-    ? { sourcePath: path, rotation: prefs.rotation, fit: prefs.fit, padColor: prefs.padColor }
+    ? { sourcePath: path, rotation: prefs.rotation, fit: prefs.fit, padColor: prefs.padColor, margin: prefs.margin }
     : null;
   useEffect(() => {
     if (!job) return;
@@ -114,7 +114,7 @@ export function ImageTab({
         if (seq === previewSeq.current) setPreviewBusy(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [path, prefs.rotation, prefs.fit, prefs.padColor]);
+  }, [path, prefs.rotation, prefs.fit, prefs.padColor, prefs.margin.join(",")]);
 
   async function write() {
     if (!job) return;
@@ -233,6 +233,12 @@ export function ImageTab({
                 ))}
               </div>
             </div>
+            <span className="text-[12.5px] text-mute">余白</span>
+            <MarginEditor
+              value={prefs.margin}
+              disabled={writing}
+              onChange={(m) => setPrefs({ margin: m })}
+            />
           </div>
         </section>
 
@@ -388,6 +394,65 @@ function WritingBox({ progress }: { progress: Progress | null }) {
           </span>
         ))}
       </div>
+    </div>
+  );
+}
+
+const SIDES = ["上", "右", "下", "左"] as const;
+
+// 端が枠に隠れるときに、画像を内側へ寄せる（画面のピクセル単位）
+function MarginEditor({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: [number, number, number, number];
+  onChange: (v: [number, number, number, number]) => void;
+  disabled: boolean;
+}) {
+  const set = (i: number, n: number) => {
+    const v = [...value] as [number, number, number, number];
+    v[i] = Math.max(0, Math.min(60, Math.round(n || 0)));
+    onChange(v);
+  };
+  return (
+    <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
+      {SIDES.map((side, i) => (
+        <div key={side} className="flex items-center gap-1">
+          <label htmlFor={`margin-${i}`} className="text-[12px] text-dim">
+            {side}
+          </label>
+          <button
+            type="button"
+            aria-label={`${side}の余白を減らす`}
+            disabled={disabled || value[i] <= 0}
+            onClick={() => set(i, value[i] - 1)}
+            className="h-6 w-6 rounded border border-line3 bg-btn text-ink2 disabled:opacity-40"
+          >
+            −
+          </button>
+          <input
+            id={`margin-${i}`}
+            type="number"
+            min={0}
+            max={60}
+            value={value[i]}
+            disabled={disabled}
+            onChange={(e) => set(i, Number(e.target.value))}
+            className="num selectable h-6 w-10 rounded border border-line3 bg-deep text-center text-[12.5px] text-ink outline-none focus:border-amber [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
+          />
+          <button
+            type="button"
+            aria-label={`${side}の余白を増やす`}
+            disabled={disabled || value[i] >= 60}
+            onClick={() => set(i, value[i] + 1)}
+            className="h-6 w-6 rounded border border-line3 bg-btn text-ink2 disabled:opacity-40"
+          >
+            ＋
+          </button>
+        </div>
+      ))}
+      <span className="text-[11px] text-dim">画面のピクセル。端が隠れる側を増やします</span>
     </div>
   );
 }

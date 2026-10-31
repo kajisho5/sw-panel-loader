@@ -18,7 +18,9 @@ pub struct Saved {
     pub remove_others: bool,
     pub boot_logo: BootLogo,
     pub last_dir: Option<String>,
-    /// 設定の形の版。2未満なら起動ロゴを「そのまま」に戻す（0.1.0で初期値が危なかったため）
+    /// 余白 上・右・下・左（ピクセル）
+    pub margin: [u32; 4],
+    /// 設定の形の版
     #[serde(default)]
     pub version: u32,
 }
@@ -44,9 +46,10 @@ impl Default for Saved {
             no_sleep: true,
             brightness: 75,
             remove_others: true,
-            boot_logo: BootLogo::Keep,
+            boot_logo: BootLogo::Same,
             last_dir: None,
-            version: 2,
+            margin: [0; 4],
+            version: 3,
         }
     }
 }
@@ -60,9 +63,10 @@ pub fn load(dir: &PathBuf) -> Saved {
         .ok()
         .and_then(|s| serde_json::from_str(&s).ok())
         .unwrap_or_default();
-    if s.version < 2 {
-        s.boot_logo = BootLogo::Keep;
-        s.version = 2;
+    // 0.1.4から起動ロゴの初期値は「同じ画像」（固まった原因はPNGで、起動ロゴのJPEGは問題なかった）
+    if s.version < 3 {
+        s.boot_logo = BootLogo::Same;
+        s.version = 3;
     }
     s
 }
@@ -77,12 +81,12 @@ pub fn save(dir: &PathBuf, s: &Saved) -> anyhow::Result<()> {
 mod tests {
     use super::*;
     #[test]
-    fn old_prefs_reset_boot_logo() {
+    fn old_prefs_get_same_boot_logo() {
         let dir = std::env::temp_dir().join(format!("swpl-test-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        std::fs::write(dir.join("settings.json"), r#"{"bootLogo":"same","rotation":180}"#).unwrap();
+        std::fs::write(dir.join("settings.json"), r#"{"bootLogo":"keep","rotation":180}"#).unwrap();
         let s = load(&dir);
-        assert_eq!(s.boot_logo, BootLogo::Keep);
+        assert_eq!(s.boot_logo, BootLogo::Same);
         assert_eq!(s.rotation, 180);
     }
 }

@@ -11,8 +11,9 @@ const DEFAULT_PREFS: Prefs = {
   noSleep: true,
   brightness: 75,
   removeOthers: true,
-  bootLogo: "keep",
+  bootLogo: "same",
   lastDir: null,
+  margin: [0, 0, 0, 0],
 };
 
 type Tab = "image" | "card";

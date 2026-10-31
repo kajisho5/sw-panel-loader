@@ -9,6 +9,7 @@ export interface Job {
   rotation: number;
   fit: Fit;
   padColor: string;
+  margin: [number, number, number, number];
 }
 
 export interface Prefs {
@@ -21,6 +22,7 @@ export interface Prefs {
   removeOthers: boolean;
   bootLogo: BootLogo;
   lastDir: string | null;
+  margin: [number, number, number, number];
   version?: number;
 }
 
